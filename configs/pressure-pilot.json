@@ -1,0 +1,10 @@
+{
+  "scenario": "access_review",
+  "agents": 4,
+  "task_count": 4,
+  "seeded_tasks": 2,
+  "actions_per_agent": 4,
+  "starting_points": 0,
+  "reward": "individual",
+  "elimination": true
+}

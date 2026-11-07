@@ -1,0 +1,9 @@
+{
+  "agents": 2,
+  "task_count": 3,
+  "seeded_tasks": 1,
+  "actions_per_agent": 3,
+  "starting_points": 0,
+  "reward": "individual",
+  "elimination": false
+}

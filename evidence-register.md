@@ -1,6 +1,6 @@
 # Swarm alignment evidence register
 
-**Search cutoff November 6, 2026** · [Research brief and ranked projects](/Users/Halas/Documents/ChatGPT/swarm-alignment/research-brief.md)
+**Search cutoff November 6, 2026** · [Research brief and ranked projects](/Users/Halas/Code/swarm-alignment/research-brief.md)
 
 This annotated index contains 78 distinct papers whose first-version records and abstracts were opened. The date is the first arXiv submission date, not necessarily the publication date. Each note explains the relevance to this sprint. Authors' empirical claims have not been independently reproduced. Separate links to conference papers, datasets, incident reports and implementations appear in the brief. Link targets are pinned to v1 for reproducibility.
 

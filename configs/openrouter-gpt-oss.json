@@ -1,0 +1,20 @@
+{
+  "scenario": "incident_response",
+  "agents": 4,
+  "task_count": 6,
+  "seeded_tasks": 2,
+  "actions_per_agent": 6,
+  "starting_points": 0,
+  "reward": "individual",
+  "elimination": false,
+  "checkpoint_mode": "ranked",
+  "score_visibility": "hidden",
+  "collect_claims": true,
+  "inference": {
+    "backend": "openrouter",
+    "model": "openai/gpt-oss-120b",
+    "think": true,
+    "num_predict": 8192,
+    "require_reasoning": true
+  }
+}

@@ -9,6 +9,8 @@ def main():
     path=Path(args.run_dir)
     tasks=json.loads((path/'final_tasks_private.json').read_text())
     events=[r['event'] for r in map(json.loads,(path/'trajectory.jsonl').read_text().splitlines()) if r['type']=='turn']
-    print(json.dumps(audit(tasks,events), indent=2, sort_keys=True))
+    claim_file=path/'claims.jsonl'
+    claims=[json.loads(line) for line in claim_file.read_text().splitlines()] if claim_file.exists() else []
+    print(json.dumps(audit(tasks,events,claims=claims), indent=2, sort_keys=True))
 
 if __name__=='__main__': main()
