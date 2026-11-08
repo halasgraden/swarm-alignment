@@ -22,6 +22,7 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(p.last_response['response']['message']['reasoning'],'analysis')
         self.assertEqual(p.last_response['response']['raw']['provider'],'host')
         self.assertFalse(p.last_response['request']['provider']['allow_fallbacks'])
+        self.assertEqual(p.last_response['request']['reasoning'], {'enabled': True})
         self.assertEqual(p.last_response['response']['eval_count'],20)
     @patch.dict(os.environ,{'OPENROUTER_API_KEY':'not-a-real-secret'})
     @patch('urllib.request.urlopen',return_value=Response())

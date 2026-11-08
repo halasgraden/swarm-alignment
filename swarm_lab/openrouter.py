@@ -32,6 +32,25 @@ class OpenRouterPolicy:
         try:
             with urllib.request.urlopen(request,timeout=self.timeout) as response: raw=json.load(response)
         except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                raise RuntimeError('OpenRouter rejected the API key (HTTP 401). Re-enter an active OpenRouter API key and run python3 -m swarm_lab.check_openrouter.') from None
+            if exc.code == 404:
+                # Classify only known error categories. Never print or save the raw body,
+                # which could contain provider details or sensitive request content.
+                try:
+                    body=json.loads(exc.read(16384).decode('utf-8','replace'))
+                    message=str(body.get('error',{}).get('message','')).lower()
+                except (ValueError,AttributeError,TypeError):
+                    message=''
+                if 'data policy' in message or 'privacy' in message or 'data collection' in message:
+                    reason='OpenRouter reports that your privacy or data policy excludes matching endpoints.'
+                elif 'region' in message:
+                    reason='OpenRouter reports that no matching endpoint is available in the selected region.'
+                elif 'endpoint' in message:
+                    reason='OpenRouter reports no matching model endpoint for this request.'
+                else:
+                    reason='OpenRouter could not find a matching model endpoint for this request.'
+                raise RuntimeError(f'{reason} (HTTP 404; model {self.model}). Check public endpoints with python3 -m swarm_lab.check_model --config <config>, and review provider and account restrictions.') from None
             raise RuntimeError(f'OpenRouter HTTP {exc.code} for {self.model}') from None
         except (urllib.error.URLError,TimeoutError) as exc:
             raise RuntimeError(f'OpenRouter request failed for {self.model}: {type(exc).__name__}') from None

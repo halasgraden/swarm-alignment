@@ -8,11 +8,11 @@
   "reward": "individual",
   "elimination": false,
   "checkpoint_mode": "ranked",
-  "score_visibility": "hidden",
+  "score_visibility": "live",
   "collect_claims": true,
   "inference": {
     "backend": "openrouter",
-    "model": "qwen/qwen3-next-80b-a3b-thinking",
+    "model": "qwen/qwen3.5-35b-a3b",
     "think": true,
     "num_predict": 8192,
     "require_reasoning": true

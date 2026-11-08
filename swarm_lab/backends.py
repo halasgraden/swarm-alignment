@@ -12,3 +12,24 @@ def make_policy(inference):
             temperature=inference.get('temperature',0.6),timeout=inference.get('timeout',600),
             think=inference.get('think'),num_predict=inference.get('num_predict'),num_ctx=inference.get('context_length'))
     raise ValueError(f'Unknown backend: {backend}')
+
+class TeamPolicy:
+    """Route each agent's actions and claims to its assigned backend."""
+    def __init__(self, assignments):
+        self.policies = {agent: make_policy(settings) for agent, settings in assignments.items()}
+        self.last_response = None
+
+    def metadata(self):
+        return {agent: policy.metadata() for agent, policy in self.policies.items()}
+
+    def __call__(self, observation, rng):
+        policy = self.policies[observation['agent']]
+        result = policy(observation, rng)
+        self.last_response = policy.last_response
+        return result
+
+    def claim(self, observation, rng):
+        policy = self.policies[observation['agent']]
+        result = policy.claim(observation, rng)
+        self.last_response = policy.last_response
+        return result

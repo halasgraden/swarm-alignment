@@ -53,14 +53,28 @@ def run(config, seed, output, policy=mock_policy, policy_name='mock'):
     dump(output/'manifest.json', manifest)
     system_events = []
     usage = {'calls':0, 'prompt_tokens':0, 'output_tokens':0, 'truncated_responses':0, 'reported_cost_usd':0.0, 'calls_with_reported_cost':0, 'providers':[], 'resolved_models':[], 'calls_with_reported_provider':0, 'calls_with_reported_model':0, 'calls_with_visible_reasoning':0}
+    usage['by_agent'] = {a: {'calls':0, 'prompt_tokens':0, 'output_tokens':0, 'reported_cost_usd':0.0, 'calls_with_reported_cost':0, 'providers':[], 'resolved_models':[], 'calls_with_reported_provider':0, 'calls_with_reported_model':0, 'calls_with_visible_reasoning':0, 'truncated_responses':0} for a in env.agents}
+    def record_agent(agent, exchange):
+        if not exchange: return
+        raw = exchange['response']; details = raw.get('raw', {}); u = usage['by_agent'][agent]
+        u['calls'] += 1
+        u['prompt_tokens'] += raw.get('prompt_eval_count', 0); u['output_tokens'] += raw.get('eval_count', 0)
+        u['calls_with_visible_reasoning'] += bool(reasoning_text(raw.get('message', {})))
+        u['truncated_responses'] += raw.get('done_reason') in ('length', 'max_tokens')
+        for field, dest in (('provider','providers'),('model','resolved_models')):
+            if details.get(field) and details[field] not in u[dest]: u[dest].append(details[field])
+        u['calls_with_reported_provider'] += bool(details.get('provider'))
+        u['calls_with_reported_model'] += bool(details.get('model'))
+        cost = (details.get('usage') or {}).get('cost')
+        if isinstance(cost, (int,float)): u['reported_cost_usd'] += cost; u['calls_with_reported_cost'] += 1
     # Rotate and shuffle independently for each round. An eliminated agent forfeits later actions.
     try:
         if hasattr(policy, 'metadata'):
             dump(output/'model_info.json', policy.metadata())
         with (output/'trajectory.jsonl').open('w', buffering=1) as f:
             for round_no in range(config['actions_per_agent']):
-                if env.checkpoint_mode != 'none' and round_no == config['actions_per_agent']//2:
-                    ev = env.eliminate(); system_events.append(ev)
+                if env.checkpoint_mode != 'none' and round_no in env.checkpoint_rounds:
+                    ev = env.eliminate(); ev['after_round'] = round_no; system_events.append(ev)
                     f.write(json.dumps({'type':'system', **ev})+'\n')
                 order = list(env.agents); schedule_rng.shuffle(order)
                 for agent in order:
@@ -69,6 +83,7 @@ def run(config, seed, output, policy=mock_policy, policy_name='mock'):
                     action = policy(obs, policy_rng)
                     ev = env.step(agent, action)
                     exchange=getattr(policy,'last_response',None)
+                    record_agent(agent, exchange)
                     if exchange:
                         raw=exchange['response']; usage['calls']+=1
                         usage['calls_with_visible_reasoning']+=bool(reasoning_text(raw.get('message',{})))
@@ -97,6 +112,7 @@ def run(config, seed, output, policy=mock_policy, policy_name='mock'):
                     claim={'agent':agent,'observation':obs,'response':response,'provider_exchange':getattr(policy,'last_response',None)}
                     claims.append(claim)
                     exchange=getattr(policy,'last_response',None)
+                    record_agent(agent, exchange)
                     if exchange:
                         raw=exchange['response']; usage['calls']+=1
                         usage['calls_with_visible_reasoning']+=bool(reasoning_text(raw.get('message',{})))
@@ -115,7 +131,7 @@ def run(config, seed, output, policy=mock_policy, policy_name='mock'):
                         raise RuntimeError('Claim response truncated; inspect claims.jsonl')
         dump(output/'usage.json', usage)
         dump(output/'metrics.json', audit(env.tasks, env.events, claims=claims))
-        cutoff = config['agents'] * (config['actions_per_agent'] // 2)
+        cutoff = config['agents'] * env.checkpoint_rounds[0] if env.checkpoint_rounds else 0
         dump(output/'pre_checkpoint_metrics.json', audit_prefix(initial, env.events, cutoff))
         manifest['status'] = 'completed'
     except Exception as exc:
@@ -123,6 +139,10 @@ def run(config, seed, output, policy=mock_policy, policy_name='mock'):
         manifest['error'] = f'{type(exc).__name__}: {exc}'
         raise
     finally:
+        dump(output/'usage.json', usage)
+        manifest['finished_utc'] = datetime.now(timezone.utc).isoformat()
+        manifest['checkpoint_events'] = system_events
+        manifest['winner'] = system_events[-1].get('winner') if system_events else None
         if (output/'trajectory.jsonl').exists():
             manifest['trajectory_sha256'] = hashlib.sha256((output/'trajectory.jsonl').read_bytes()).hexdigest()
         manifest['artifact_sha256'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir()) if p.is_file() and p.name != 'manifest.json'}
@@ -142,7 +162,13 @@ def main():
     if a.think is None: a.think=inference.get('think')
     if a.num_predict is None: a.num_predict=inference.get('num_predict')
     if a.context_length is None: a.context_length=inference.get('context_length')
-    if a.model:
+    if config.get('agent_inference') and not a.mock:
+        from .backends import TeamPolicy
+        expected = {f'A{i+1}' for i in range(config['agents'])}
+        if set(config['agent_inference']) != expected: raise ValueError('agent_inference must assign every agent')
+        policy = TeamPolicy(config['agent_inference'])
+        print(run(config,a.seed,a.output,policy,policy_name='team'))
+    elif a.model:
         from .backends import make_policy
         backend=a.backend or inference.get('backend','ollama')
         settings={**inference,'backend':backend,'model':a.model,'temperature':a.temperature,'think':a.think,'num_predict':a.num_predict,'timeout':a.timeout}
@@ -153,4 +179,12 @@ def main():
         print(run(config,a.seed,a.output,policy,policy_name=backend+':'+a.model))
     else: print(run(config,a.seed,a.output))
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    try:
+        main()
+    except FileExistsError as exc:
+        print(f'Output directory already exists: {exc.filename}. Choose a new --output path; existing runs are never overwritten.', file=sys.stderr)
+        sys.exit(2)
+    except RuntimeError as exc:
+        print(f'Error: {exc}', file=sys.stderr)
+        sys.exit(1)

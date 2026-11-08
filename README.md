@@ -1,63 +1,115 @@
 # Credit under pressure: a multi-agent safety testbed
 
+> **Current study:** The ranked-only assistance experiment and its model-review workflow are documented in [STUDY_RUNBOOK.md](STUDY_RUNBOOK.md). New runs belong under Git-ignored `logs/<study>/<run-id>/`; each run has its own trajectory, reasoning log, metrics, and manifest. Its primary measure is helping when a personal scoring alternative is available. The older overwrite scenario and quick start below are retained for historical reproduction and are not the current protocol. The new study has not been live-calibrated.
+
 This research testbed tests whether individual credit and removal pressure lead language-model agents to compete over visible work while neglecting verification and shared safety tasks. Its main scenario is a **fictional incident-response queue**. Agents decide which simulated incidents to contain, share a board, and may overwrite one another's decisions. No real incidents, accounts, networks, or containment actions are involved.
 
 The project was developed for the [Swarm Alignment Hackathon](https://apartresearch.com/sprints/swarm-alignment-2026). Read the [experiment report](EXPERIMENT_REPORT.md) for the research question, protocol, measures, observations, and limitations. [OpenRouter setup](OPENROUTER_SETUP.md) gives additional backend and reasoning-annotation details.
 
-## Quick start
+## Historical quick start — not the current workflow
 
-Python 3.10 or newer; no third-party Python packages are required.
+The commands in this historical section describe an earlier experiment and are retained only for interpretation of old artifacts. Do not run its reward or random-elimination comparisons for the current study. Use the [current runbook](STUDY_RUNBOOK.md), which specifies owner-only credit and ranked elimination.
+
+You need Python 3.10+ and an OpenRouter API key. The commands below use Qwen; replace `openrouter-qwen.json` with another model configuration listed below. All commands after setting the key use the **same terminal session**.
+
+1. **Open the project and check the code.** This step is free:
+
+   ```sh
+   cd /Users/Halas/Desktop/Code/swarm-alignment
+   python3 -m unittest discover -s tests -v
+   ```
+
+2. **Set your key.** Create an OpenRouter API key and set a spending limit on it. In zsh, enter it privately when prompted; do not put the key in the repository or chat:
+
+   ```sh
+   source ./set-openrouter-key.zsh
+   ```
+
+   When prompted, paste **only the key**, then press Enter. Input is hidden while typing; after Enter the helper reports how many characters it received without showing the key, then checks authentication. If it says the input contains whitespace or OpenRouter rejects it, source the helper again and re-enter the key. The check does not verify model access or credit availability.
+
+   Optionally check the configured model's public endpoints (this does not use your key or send a model request):
+
+   ```sh
+   python3 -m swarm_lab.check_model --config configs/openrouter-qwen.json
+   ```
+
+   Public endpoints may still be excluded by account settings or unavailable at request time.
+
+3. **Run one technical check and inspect it.** This uses paid API calls. The timestamped output directory must not already exist; if it does, wait one second and retry. The command runs the configured four-agent incident scenario and requests contribution reports; it is a single run, not a separate preflight or a controlled comparison.
+
+   ```sh
+   RUN_DIR="runs/qwen-check-$(date +%Y%m%d-%H%M%S)"
+   python3 -m swarm_lab.run --config configs/openrouter-qwen.json --seed 42 --output "$RUN_DIR" &&
+   python3 -m swarm_lab.inspect_run "$RUN_DIR" &&
+   python3 -m swarm_lab.analyze "$RUN_DIR" &&
+   python3 -m swarm_lab.verify_run "$RUN_DIR"
+   ```
+
+   Read `critical_uncontained` alongside `critical_incidents`, `harmful_overwrites`, and `unverified_final_answers`. Inspect `trajectory.jsonl` for the actual decisions and available reasoning, and `usage.json` for cost if the provider reports it. A model/provider error or truncated response can stop the run; inspect its manifest and partial trace. A successful single run does not guarantee readable reasoning on every request; the batch preflight checks for it before collecting comparisons.
+
+4. **Run a small comparison.** This is also paid: it performs one model preflight and, if that succeeds, **eight team runs** (two seeds × two rewards × two workloads × one checkpoint rule). The batch requires a complete preflight action and readable reasoning, and stops on truncated output or a provider/model change. Choose another new output directory:
+
+   ```sh
+   BATCH_DIR="runs/qwen-compare-$(date +%Y%m%d-%H%M%S)"
+   python3 -m swarm_lab.batch --config configs/openrouter-qwen.json \
+     --output "$BATCH_DIR" --seeds 2 --scarce 4 --plentiful 8 \
+     --rewards team individual --checkpoints none
+   ```
+
+5. **Compare conditions.** This reports the paired difference in final fraction correct: **individual minus team**, under the scarce workload and no-removal checkpoint. A negative value means individual-credit teams were less accurate in this comparison.
+
+   ```sh
+   python3 -m swarm_lab.summarize "$BATCH_DIR" --axis reward \
+     --left individual --right team --checkpoint none --workload scarce \
+     --metric fraction_correct --stage final
+   ```
+
+   Add `--interaction` to the same command to compare that reward difference between the scarce and plentiful workloads. Look at `paired_seeds`, `missing_or_failed_runs`, and the paired differences as well as the mean. Two seeds are for checking the workflow only; the interval is not a reliable basis for a research conclusion. The tool does not yet calculate the fraction of critical incidents uncontained: divide `critical_uncontained` by `critical_incidents` per run when the denominator is nonzero.
+
+To check **removal pressure** instead, run a separate paid batch using `--rewards individual --checkpoints random ranked`. That is also eight runs with the two-seed and workload settings above. Compare **before** removal, when all four agents still have capacity, with:
 
 ```sh
-cd /Users/Halas/Desktop/Code/swarm-alignment
-python3 -m unittest discover -s tests -v
+python3 -m swarm_lab.summarize runs/qwen-pressure-1 --axis checkpoint_mode \
+  --reward individual --left ranked --right random --workload scarce \
+  --metric fraction_correct --stage pre
 ```
 
-For an offline infrastructure check using a deterministic mock agent and the older arithmetic example:
+Use `--output runs/qwen-pressure-1` for that second batch. Ranked and random removal each remove one agent, but may remove different agents; this is an imperfect capacity control.
+
+Calibrate the example task counts to model capacity before calling them scarce or plentiful. Use OpenRouter's per-key limit to control spending; the program does not impose a hard dollar cap. For a real study, pilot each model, pin providers where possible, select workload sizes, freeze the protocol, and collect enough independent team runs. See the [experiment report](EXPERIMENT_REPORT.md) for controls, limitations, and proposed analysis.
+
+For a free offline infrastructure check using a deterministic mock policy:
 
 ```sh
-python3 -m swarm_lab.run --config configs/example.json --seed 42 --output runs/mock-example-1
-python3 -m swarm_lab.inspect_run runs/mock-example-1
+MOCK_RUN="runs/mock-example-$(date +%Y%m%d-%H%M%S)"
+python3 -m swarm_lab.run --config configs/example.json --seed 42 --output "$MOCK_RUN" &&
+python3 -m swarm_lab.inspect_run "$MOCK_RUN"
 ```
 
-Use a **new output directory** for every run; the runner refuses to overwrite an existing one. Mock results test the machinery and are not model findings.
+Mock output tests the machinery and is not model evidence.
 
-## Use OpenRouter
+## Matched leaderboard pilot
 
-Create an OpenRouter API key with a spending limit. In a zsh terminal, enter it without placing it in source files or chat:
+The four OpenRouter model configurations use a live, ranked leaderboard. For a small exploratory comparison, the paired-pilot command runs the Qwen team twice on the same seeded tasks: once with the leaderboard visible and once hidden. It fixes the provider, randomizes order, checks preflight output and saves a side-by-side `comparison.json`.
 
 ```sh
-read -rs 'OPENROUTER_API_KEY?OpenRouter API key: '
-export OPENROUTER_API_KEY
+PAIR_DIR="runs/qwen-leaderboard-pair-$(date +%Y%m%d-%H%M%S)"
+python3 -m swarm_lab.paired_pilot --output "$PAIR_DIR" --seed 42 --provider alibaba
 ```
 
-The key is available to processes started from that terminal. The program does not log the authorization header. See [OpenRouter setup](OPENROUTER_SETUP.md) for provider routing, the optional reasoning annotator, and more details. Live requests cost credits; the program does **not** impose a hard dollar cap.
+This is a paid call: one preflight plus up to 25 calls per team run, including contribution reports. A new output directory is required. Inspect each run with `python3 -m swarm_lab.inspect_run "$PAIR_DIR/live"` and the corresponding `hidden` path. One matched pair is a pilot, not enough to estimate a reliable effect. A fixed provider improves comparability within a pair; other providers and model families can be tested in separate matched blocks. Provider restrictions may make a request unavailable.
+
+## Models and batch options
 
 Four configurations run separate homogeneous teams from four different families:
 
-- `configs/openrouter-qwen.json` — Qwen3 Next 80B A3B Thinking.
+- `configs/openrouter-qwen.json` — Qwen3.5 35B A3B.
 - `configs/openrouter-gpt-oss.json` — GPT-OSS 120B.
-- `configs/openrouter-deepseek.json` — DeepSeek R1.
+- `configs/openrouter-gemini.json` — Google Gemini 2.5 Flash (the current assistance study's third model).
+- `configs/openrouter-deepseek.json` — DeepSeek R1 (legacy configuration).
 - `configs/openrouter-mistral.json` — Mistral Small 4.
 
-A single, paid technical check can be started with:
-
-```sh
-python3 -m swarm_lab.run --config configs/openrouter-qwen.json --seed 42 --output runs/qwen-check-1
-python3 -m swarm_lab.inspect_run runs/qwen-check-1
-```
-
-A single run is **not** a controlled experiment or a separate preflight. It may use multiple paid model calls, including post-run claims. It stops and saves the partial trace on a truncated response. Check `usage.json` for provider-reported tokens and cost when supplied; reconcile spending with OpenRouter. No secret should be inserted into a configuration.
-
-`swarm_lab.batch` creates randomized reward × checkpoint × workload schedules and performs a real paid model preflight before the runs. Its default is **18 conditions per seed**: three reward rules, three checkpoint rules, and two workloads. For example, this smaller, paid smoke batch has eight runs and one preflight, not one run:
-
-```sh
-python3 -m swarm_lab.batch --config configs/openrouter-qwen.json \
-  --output runs/qwen-smoke-batch-1 --seeds 1 \
-  --scarce 4 --plentiful 8 --rewards team individual --checkpoints none ranked
-```
-
-Do not assume these workload sizes are actually scarce or plentiful: calibrate them against measured team capacity. Batch preflight requires readable reasoning for the supplied OpenRouter configs. The batch stops on incomplete output or provider/model changes; a changed-provider run is marked invalid for analysis. A pinned provider can be specified with `--provider <slug>`; otherwise routing may change and halt collection. Provider identity and a model name do not guarantee a fixed remote checkpoint or quantization.
+`swarm_lab.batch` defaults to **18 conditions per seed**: three reward rules, three checkpoint rules, and two workloads. Use `--rewards` and `--checkpoints` to select a smaller matrix; use `--checkpoints none random ranked` for the complete checkpoint comparison. A pinned provider can be specified with `--provider <slug>`; otherwise routing may change and halt collection. Provider identity and a model name do not guarantee a fixed remote checkpoint or quantization. See [OpenRouter setup](OPENROUTER_SETUP.md) for provider routing and the optional reasoning annotator.
 
 ## What the agents do
 
@@ -73,7 +125,7 @@ The reward conditions are:
 
 Checkpoint modes are `none`, `random`, and `ranked`. At the midpoint, `ranked` removes a lowest-scoring agent with seeded random tie-breaking; `random` removes a randomly selected agent. Removal forfeits that agent's remaining turns. `checkpoint_mode` **overrides** the legacy `elimination` boolean when present. Starting scores are adjustable, including per-agent overrides; points are not spendable. Adding the same starting score to everyone does not change a rank-only elimination.
 
-`score_visibility` can be `hidden` or `live`. Hidden scores reduce direct score-feedback differences between reward schemes but also remove the visible leaderboard. With live scores, correctness-based team and audited scoring can reveal information that last-author credit does not. Random removal matches the *number* of removed agents, but can remove a different agent; it is an imperfect capacity control. Analyze pre-checkpoint behavior separately.
+The OpenRouter model configurations default to `score_visibility: live`, which provides current scores and a ranked list with shared ranks for ties. `score_visibility` can also be set to `hidden`. Hidden scores reduce direct score-feedback differences between reward schemes but also remove the visible leaderboard. With live scores, correctness-based team and audited scoring can reveal information that last-author credit does not. Random removal matches the *number* of removed agents, but can remove a different agent; it is an imperfect capacity control. Analyze pre-checkpoint behavior separately.
 
 ## What gets measured
 
@@ -97,8 +149,8 @@ Each completed run directory includes:
 - `model_info.json`: backend metadata. Local Ollama metadata includes a model digest; OpenRouter model identifiers do not establish a remote weight digest.
 
 ```sh
-python3 -m swarm_lab.analyze runs/qwen-check-1
-python3 -m swarm_lab.verify_run runs/qwen-check-1
+python3 -m swarm_lab.analyze "$RUN_DIR"
+python3 -m swarm_lab.verify_run "$RUN_DIR"
 python3 -m swarm_lab.summarize --help
 ```
 

@@ -1,26 +1,27 @@
 # OpenRouter and the incident-response experiment
 
+For the current ranked-only assistance study and its model review, use [STUDY_RUNBOOK.md](STUDY_RUNBOOK.md). The incident overwrite instructions below describe the legacy scenario.
+
 ## Add your key
 
 Set an OpenRouter key in your shell without pasting it into the code, config files, chat, or experiment logs. In zsh:
 
 ```sh
-read -rs 'OPENROUTER_API_KEY?OpenRouter API key: '
-export OPENROUTER_API_KEY
+source ./set-openrouter-key.zsh
 ```
 
-The key applies to that terminal session. Set a spending limit on the key in OpenRouter before running a batch; the local program records provider-reported cost but does not impose a hard dollar cap. Providers, prices and model availability can change. The program does not save the authorization header.
+At the prompt, paste only the key and press Enter. Input stays hidden; the helper then reports the number of characters received and checks authentication without showing the key. If it reports whitespace, source the helper again and paste the key without extra spaces or commands. The key applies to that terminal session. Set a spending limit on the key in OpenRouter before running a batch; the local program records provider-reported cost but does not impose a hard dollar cap. Providers, prices and model availability can change. The program does not save the authorization header.
 
 ## Models
 
 Each configuration runs one model in a homogeneous team. These four are different families, not four agents of different models in a single team:
 
-- `configs/openrouter-qwen.json`: `qwen/qwen3-next-80b-a3b-thinking`
+- `configs/openrouter-qwen.json`: `qwen/qwen3.5-35b-a3b`
 - `configs/openrouter-gpt-oss.json`: `openai/gpt-oss-120b`
-- `configs/openrouter-deepseek.json`: `deepseek/deepseek-r1`
+- `configs/openrouter-gemini.json`: `google/gemini-2.5-flash` (replaces DeepSeek R1 in the assistance study)
 - `configs/openrouter-mistral.json`: `mistralai/mistral-small-2603`
 
-OpenRouter support, actual model output, reasoning visibility and provider compatibility require a preflight with your account. A model listing is not a guarantee that a particular endpoint or structured output works. Raw responses include provider, model, usage and reasoning when the provider returns them. The batch stops if a response truncates or if reported model/provider changes. OpenRouter model IDs are not weight hashes: even a stable provider and model ID do not prove the exact checkpoint and quantization remain unchanged. For stricter comparison, use `--provider <openrouter-provider-slug>`; fallback is disabled when a provider is specified. Provider restrictions can make a model unavailable.
+The earlier Qwen3 Next 80B Thinking configuration was replaced by Qwen3.5 35B A3B after the former had no public endpoints. Run `python3 -m swarm_lab.check_model --config configs/openrouter-qwen.json` to inspect the current public endpoint list. OpenRouter support, actual model output, reasoning visibility and provider compatibility require a preflight with your account. A model listing is not a guarantee that a particular endpoint or structured output works. Raw responses include provider, model, usage and reasoning when the provider returns them. The batch stops if a response truncates or if reported model/provider changes. OpenRouter model IDs are not weight hashes: even a stable provider and model ID do not prove the exact checkpoint and quantization remain unchanged. For stricter comparison, use `--provider <openrouter-provider-slug>`; fallback is disabled when a provider is specified. Provider restrictions can make a model unavailable.
 
 ## The synthetic scenario
 
@@ -33,8 +34,9 @@ Deterministic metrics in `metrics.json` include correct/incorrect/blank results,
 ## Start with a single small check
 
 ```sh
-python3 -m swarm_lab.run --config configs/openrouter-qwen.json --seed 42 --output runs/qwen-check
-python3 -m swarm_lab.inspect_run runs/qwen-check
+RUN_DIR="runs/qwen-check-$(date +%Y%m%d-%H%M%S)"
+python3 -m swarm_lab.run --config configs/openrouter-qwen.json --seed 42 --output "$RUN_DIR" &&
+python3 -m swarm_lab.inspect_run "$RUN_DIR"
 ```
 
 This sends paid requests. Choose a new output path each time. Single runs stop if a provider response is truncated; raw response and reasoning, if returned, are in `trajectory.jsonl`. The API key is not in the logged request payload. `usage.json` gives reported costs when available, not a guaranteed full billing statement.

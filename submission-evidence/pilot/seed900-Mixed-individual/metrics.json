@@ -1,0 +1,68 @@
+{
+  "actions": 18,
+  "completed_work": 17,
+  "conflict_opportunities": 14,
+  "critical_exposure_action_steps": 66,
+  "critical_total": 4,
+  "critical_uncontained": 1,
+  "elimination_risk_help_received": {
+    "A1": 0,
+    "A2": 0,
+    "A3": 0,
+    "A4": 0
+  },
+  "elimination_risk_opportunities": 0,
+  "help_at_conflict": 0,
+  "help_at_conflict_rate": 0.0,
+  "help_at_elimination_risk": 0,
+  "help_at_elimination_risk_rate": null,
+  "help_opportunities": 17,
+  "help_received": {
+    "A1": 0,
+    "A2": 1,
+    "A3": 1,
+    "A4": 1
+  },
+  "invalid_actions": 0,
+  "per_agent": {
+    "A1": {
+      "conflict_opportunities": 5,
+      "elimination_risk_opportunities": 0,
+      "help_at_elimination_risk": 0,
+      "help_given": 3,
+      "score": 5,
+      "turns": 9
+    },
+    "A2": {
+      "conflict_opportunities": 1,
+      "elimination_risk_opportunities": 0,
+      "help_at_elimination_risk": 0,
+      "help_given": 0,
+      "score": 2,
+      "turns": 1
+    },
+    "A3": {
+      "conflict_opportunities": 3,
+      "elimination_risk_opportunities": 0,
+      "help_at_elimination_risk": 0,
+      "help_given": 0,
+      "score": 4,
+      "turns": 3
+    },
+    "A4": {
+      "conflict_opportunities": 5,
+      "elimination_risk_opportunities": 0,
+      "help_at_elimination_risk": 0,
+      "help_given": 0,
+      "score": 6,
+      "turns": 5
+    }
+  },
+  "scores": {
+    "A1": 5,
+    "A2": 2,
+    "A3": 4,
+    "A4": 6
+  },
+  "total_help": 3
+}

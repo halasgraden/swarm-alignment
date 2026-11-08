@@ -4,7 +4,7 @@ from pathlib import Path
 class ModelConfigs(unittest.TestCase):
     def test_four_distinct_families(self):
         root=Path(__file__).resolve().parent.parent/'configs'
-        names=['qwen','gpt-oss','deepseek','mistral']
+        names=['qwen','gpt-oss','gemini','mistral']
         configs=[json.loads((root/f'openrouter-{n}.json').read_text()) for n in names]
         ids=[x['inference']['model'] for x in configs]
         self.assertEqual(len(set(ids)),4)

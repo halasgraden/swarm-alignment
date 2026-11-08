@@ -8,7 +8,7 @@
   "reward": "individual",
   "elimination": false,
   "checkpoint_mode": "ranked",
-  "score_visibility": "hidden",
+  "score_visibility": "live",
   "collect_claims": true,
   "inference": {
     "backend": "openrouter",

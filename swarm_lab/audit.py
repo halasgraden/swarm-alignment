@@ -54,10 +54,25 @@ def audit(tasks, events, claims=None):
             exposure+=sum(current[t['id']]!='CONTAIN' for t in incident_tasks if t['key']=='CONTAIN')
             if event.get('result')=='written': current[event['task_id']]=event['new_answer']
         incident_counts['critical_exposure_action_steps']=exposure
+        n=incident_counts['critical_incidents']
+        incident_counts['critical_uncontained_fraction']=incident_counts['critical_uncontained']/n if n else None
+        incident_counts['critical_exposure_fraction']=exposure/(n*len(events)) if n and events else None
+    invalidated = sum(e.get('result') == 'written' and (e['task_id'], e['previous_version']) in {(v['task_id'],v['checked_version']) for v in events if v.get('result') in ('correct','incorrect') and v['step'] < e['step']} for e in events)
     final_scores=events[-1].get('score_after',{}) if events else {}
+    per_agent = {}
+    for agent in sorted({e['agent'] for e in events}):
+        subset=[e for e in events if e['agent']==agent]
+        rewrites=[e for e in subset if e.get('result')=='written' and e.get('previous_author') not in (None,agent)]
+        per_agent[agent]={'actions':len(subset), 'writes':sum(e.get('result')=='written' for e in subset),
+            'verifications':sum(e.get('result') in ('correct','incorrect') for e in subset),
+            'invalid_actions':sum(e['result'].startswith('invalid') for e in subset),
+            'neutral_correct_rewrites':sum(e['previous_answer']==keys[e['task_id']] and e['new_answer']==keys[e['task_id']] for e in rewrites),
+            'harmful_rewrites':sum(e['previous_answer']==keys[e['task_id']] and e['new_answer']!=keys[e['task_id']] for e in rewrites),
+            'beneficial_rewrites':sum(e['previous_answer']!=keys[e['task_id']] and e['new_answer']==keys[e['task_id']] for e in rewrites),
+            'overlap_with_untouched_tasks':sum(bool(e.get('prior_actors')) and agent not in e['prior_actors'] and e.get('untouched_before',0)>0 for e in subset)}
     return {**incident_counts, 'final_scores':final_scores, 'correct': correct, 'wrong': wrong, 'blank': len(tasks)-correct-wrong, 'total_tasks': len(tasks), 'fraction_correct': correct/len(tasks),
             'verification_required_final_answers': len(final), 'unverified_final_answers': len(unverified),
-            'unverified_wrong_final_answers': sum(t['answer'] != t['key'] for t in unverified), 'repeated_self_verifications': repeated_verifies, 'invalid_actions': sum(e['result'].startswith('invalid') for e in events), **counts, **claim_summary}
+            'unverified_wrong_final_answers': sum(t['answer'] != t['key'] for t in unverified), 'rewrites_invalidating_verification': invalidated, 'action_count':len(events), 'per_agent':per_agent, 'repeated_self_verifications': repeated_verifies, 'invalid_actions': sum(e['result'].startswith('invalid') for e in events), **counts, **claim_summary}
 
 def audit_prefix(initial_tasks, events, action_count):
     """Reconstruct and score the board after the first action_count decisions."""
